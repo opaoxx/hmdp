@@ -1,0 +1,27 @@
+# IntelliJ IDEA and other IDE metadata
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+
+# Java/Maven build output
+**/target/
+**/build/
+
+# Local application configuration and secrets
+hm-dianping/src/main/resources/application.yaml
+**/application-local.yaml
+.env
+.env.*
+!.env.example
+
+# Nginx runtime files
+**/logs/
+**/temp/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
