@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 
+//生成秒杀券订单id
 @Component
 public class RedisIdWorker {
 
