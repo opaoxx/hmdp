@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import static com.hmdp.utils.RedisConstants.CACHE_SHOP_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 class HmDianPingApplicationTests {
@@ -89,5 +90,18 @@ class HmDianPingApplicationTests {
             executor.awaitTermination(5, TimeUnit.SECONDS);
             stringRedisTemplate.delete(counterKey);
         }
+    }
+
+    @Test
+    void testShopGeoCachePreloaded() {
+        Set<String> keys = stringRedisTemplate.keys("shop:geo:*");
+        assertNotNull(keys);
+        long geoShopCount = keys.stream()
+                .mapToLong(key -> {
+                    Long size = stringRedisTemplate.opsForZSet().size(key);
+                    return size == null ? 0L : size;
+                })
+                .sum();
+        assertTrue(geoShopCount >= shopService.count(), "店铺 GEO 缓存未完成预热");
     }
 }
