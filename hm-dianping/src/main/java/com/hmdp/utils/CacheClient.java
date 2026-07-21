@@ -119,8 +119,10 @@ public class CacheClient {
                                             Function<ID, T> dbFallback, Long time, TimeUnit unit) {
         String key = keyPrefix + id;
         String json = stringRedisTemplate.opsForValue().get(key);
+        if (json == null) {
+            return rebuildLogicalCacheOnMiss(key, id, type, dbFallback, time, unit);
+        }
         if (StrUtil.isBlank(json)) {
-            // 逻辑过期模式要求调用前先完成缓存预热
             return null;
         }
 
@@ -171,6 +173,48 @@ public class CacheClient {
             }
         }
         return t;
+    }
+
+    private <ID, T> T rebuildLogicalCacheOnMiss(String key, ID id, Class<T> type,
+                                                  Function<ID, T> dbFallback, Long time, TimeUnit unit) {
+        String lockKey = LOCK_SHOP_KEY + id;
+        while (true) {
+            String lockValue = tryLock(lockKey);
+            if (lockValue == null) {
+                sleepBeforeRetry();
+                String latestJson = stringRedisTemplate.opsForValue().get(key);
+                if (latestJson == null) {
+                    continue;
+                }
+                if (StrUtil.isBlank(latestJson)) {
+                    return null;
+                }
+                RedisData latestData = JSONUtil.toBean(latestJson, RedisData.class);
+                return convertData(latestData, type);
+            }
+
+            try {
+                String latestJson = stringRedisTemplate.opsForValue().get(key);
+                if (StrUtil.isNotBlank(latestJson)) {
+                    RedisData latestData = JSONUtil.toBean(latestJson, RedisData.class);
+                    if (latestData.getExpireTime().isAfter(LocalDateTime.now())) {
+                        return convertData(latestData, type);
+                    }
+                } else if (latestJson != null) {
+                    return null;
+                }
+
+                T fresh = dbFallback.apply(id);
+                if (fresh == null) {
+                    stringRedisTemplate.opsForValue().set(key, "", CACHE_NULL_TTL, TimeUnit.MINUTES);
+                    return null;
+                }
+                setWithLogicalExpire(key, fresh, time, unit);
+                return fresh;
+            } finally {
+                unLock(lockKey, lockValue);
+            }
+        }
     }
 
     private String tryLock(String key) {

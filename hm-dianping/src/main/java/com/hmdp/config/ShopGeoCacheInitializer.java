@@ -3,6 +3,7 @@ package com.hmdp.config;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.hmdp.entity.Shop;
 import com.hmdp.mapper.ShopMapper;
+import com.hmdp.utils.CacheClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -16,7 +17,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.concurrent.TimeUnit;
 
+import static com.hmdp.utils.RedisConstants.CACHE_SHOP_KEY;
+import static com.hmdp.utils.RedisConstants.CACHE_SHOP_TTL;
 import static com.hmdp.utils.RedisConstants.SHOP_GEO_KEY;
 
 @Slf4j
@@ -29,14 +33,20 @@ public class ShopGeoCacheInitializer implements ApplicationRunner {
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
+    @Resource
+    private CacheClient cacheClient;
+
     @Override
     public void run(ApplicationArguments args) {
         reload();
     }
 
     public void reload() {
-        List<Shop> shops = shopMapper.selectList(new QueryWrapper<Shop>()
-                .select("id", "type_id", "x", "y"));
+        List<Shop> shops = shopMapper.selectList(new QueryWrapper<Shop>());
+        for (Shop shop : shops) {
+            cacheClient.setWithLogicalExpire(
+                    CACHE_SHOP_KEY + shop.getId(), shop, CACHE_SHOP_TTL, TimeUnit.MINUTES);
+        }
         Map<Long, List<Shop>> shopsByType = shops.stream()
                 .filter(shop -> shop.getTypeId() != null && shop.getX() != null && shop.getY() != null)
                 .collect(Collectors.groupingBy(Shop::getTypeId));
